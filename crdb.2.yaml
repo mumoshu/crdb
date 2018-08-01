@@ -1,0 +1,34 @@
+metadata:
+  name: test2
+spec:
+  # Additional resource definitions are loaded from dynamodb table named `crdb-test1`
+  source: "dynamodb://"
+  # You can define resource definitions inline i.e. within `crdb.yaml`
+  #
+  # Run:
+  #
+  #   crdb -c crdb.2.yaml apply -f example/cluster.resourcedefinition.yaml
+  #   crdb -c crdb.2.yaml apply -f example/deployment.resourcedefinition.yaml
+  #   crdb -c crdb.2.yaml apply -f example/application.resourcedefinition.yaml
+  #
+  # And crdb will locate the following resource definitions from the dynamodb table for you:
+  #
+  # resourceDefinitions:
+  #  - kind: ResourceDefinition
+  #    metadata:
+  #      name: cluster
+  #    spec:
+  #      names:
+  #        kind: Cluster
+  #  - kind: ResourceDefinition
+  #    metadata:
+  #      name: deployment
+  #    spec:
+  #      names:
+  #        kind: Deployment
+  #  - kind: ResourceDefinition
+  #    metadata:
+  #      name: application
+  #    spec:
+  #      names:
+  #        kind: Application

@@ -1,0 +1,6 @@
+kind: ResourceDefinition
+metadata:
+  name: application
+spec:
+  names:
+    kind: Application

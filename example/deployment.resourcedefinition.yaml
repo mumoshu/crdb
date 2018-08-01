@@ -1,0 +1,6 @@
+kind: ResourceDefinition
+metadata:
+  name: deployment
+spec:
+  names:
+    kind: Deployment

@@ -1,0 +1,7 @@
+kind: Cluster
+metadata:
+  name: foo
+  namespace: default
+spec:
+  kubeconfig: |
+    mykubeconfigcontent-updated

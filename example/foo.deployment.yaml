@@ -1,0 +1,6 @@
+kind: Deployment
+metadata:
+  name: foo
+  namespace: default
+spec:
+  sha1: q23rerfgdafg

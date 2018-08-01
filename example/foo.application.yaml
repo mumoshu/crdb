@@ -1,0 +1,7 @@
+kind: Application
+metadata:
+  name: foo
+  namespace: default
+spec:
+  kubeconfig: |
+    mykubeconfigcontent

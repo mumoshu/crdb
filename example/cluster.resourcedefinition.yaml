@@ -1,0 +1,6 @@
+kind: ResourceDefinition
+metadata:
+  name: cluster
+spec:
+  names:
+    kind: Cluster
