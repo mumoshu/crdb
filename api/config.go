@@ -8,9 +8,9 @@ type Config struct {
 }
 
 type ConfigSpec struct {
-	// ResourceDefinition is an inline-version of resource definitions
+	// CustomResourceDefinition is an inline-version of resource definitions
 	// Either specify resource definitions in this section. Otherwise point `source` to the uri of the config store like a DynamoDB table prefix
-	ResourceDefinitions []ResourceDefinition `json:"resourceDefinitions"`
+	CustomResourceDefinitions []CustomResourceDefinition `json:"customResourceDefinitions"`
 	// Source is the source of the remote config that is fetched and merged into this config
 	Source string `json:"source"`
 }

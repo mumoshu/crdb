@@ -7,26 +7,26 @@ spec:
   #
   # Run:
   #
-  #   crdb -c crdb.2.yaml apply -f example/cluster.resourcedefinition.yaml
-  #   crdb -c crdb.2.yaml apply -f example/deployment.resourcedefinition.yaml
-  #   crdb -c crdb.2.yaml apply -f example/application.resourcedefinition.yaml
+  #   crdb -c crdb.2.yaml apply -f example/cluster.crd.yaml
+  #   crdb -c crdb.2.yaml apply -f example/deployment.crd.yaml
+  #   crdb -c crdb.2.yaml apply -f example/application.crd.yaml
   #
   # And crdb will locate the following resource definitions from the dynamodb table for you:
   #
-  # resourceDefinitions:
-  #  - kind: ResourceDefinition
+  # customResourceDefinitions:
+  #  - kind: CustomResourceDefinition
   #    metadata:
   #      name: cluster
   #    spec:
   #      names:
   #        kind: Cluster
-  #  - kind: ResourceDefinition
+  #  - kind: CustomResourceDefinition
   #    metadata:
   #      name: deployment
   #    spec:
   #      names:
   #        kind: Deployment
-  #  - kind: ResourceDefinition
+  #  - kind: CustomResourceDefinition
   #    metadata:
   #      name: application
   #    spec:

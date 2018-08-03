@@ -12,6 +12,11 @@ import (
 
 const databasePrefix = "crdb-"
 
+const (
+	crdName = "customresourcedefinition"
+	crdKind = "CustomResourceDefinition"
+)
+
 func LoadConfigFromDynamoDB(table string, context *api.Config) (*api.Config, error) {
 	db, err := newDefaultDynamoDBClient()
 	if err != nil {
@@ -21,9 +26,9 @@ func LoadConfigFromDynamoDB(table string, context *api.Config) (*api.Config, err
 		return nil, fmt.Errorf(`not implemented error: table "%s" is specified, but it is unsupported`, table)
 	}
 
-	dynamicRDs := []api.ResourceDefinition{}
+	dynamicRDs := []api.CustomResourceDefinition{}
 	for {
-		err := db.Table(globalTableName(context.Metadata.Name, "resourcedefinition")).Scan().All(&dynamicRDs)
+		err := db.Table(globalTableName(context.Metadata.Name, crdName)).Scan().All(&dynamicRDs)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "err: %v\n", err.Error())
 			if aerr, ok := err.(awserr.Error); ok {
@@ -42,24 +47,24 @@ func LoadConfigFromDynamoDB(table string, context *api.Config) (*api.Config, err
 		break
 	}
 
-	rdOfDynamicRDs := api.ResourceDefinition{
-		Kind: "ResourceDefinition",
+	rdOfDynamicRDs := api.CustomResourceDefinition{
+		Kind: crdKind,
 		Metadata: api.Metadata{
-			Name: "resourcedefinition",
+			Name: crdName,
 		},
-		Spec: api.ResourceDefinitionSpec{
-			Names: api.ResourceDefinitionNames{
-				Kind: "ResourceDefinition",
+		Spec: api.CustomResourceDefinitionSpec{
+			Names: api.CustomResourceDefinitionNames{
+				Kind: crdKind,
 			},
 		},
 	}
-	rds := []api.ResourceDefinition{
+	rds := []api.CustomResourceDefinition{
 		rdOfDynamicRDs,
 	}
 	rds = append(rds, dynamicRDs...)
 	return &api.Config{
 		Spec: api.ConfigSpec{
-			ResourceDefinitions: rds,
+			CustomResourceDefinitions: rds,
 		},
 	}, nil
 }

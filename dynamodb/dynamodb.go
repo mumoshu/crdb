@@ -27,7 +27,7 @@ type dynamoResourceDB struct {
 	db           *dynamo.DB
 	session      *session.Session
 	namespace    string
-	resourceDefs []api.ResourceDefinition
+	resourceDefs []api.CustomResourceDefinition
 }
 
 func (p *dynamoResourceDB) tablePrefix() string {
@@ -35,7 +35,7 @@ func (p *dynamoResourceDB) tablePrefix() string {
 }
 
 func (p *dynamoResourceDB) tableNameForResourceNamed(resource string) string {
-	if resource == "resourcedefinition" {
+	if resource == crdName {
 		return p.globalTableName(resource)
 	}
 	return p.namespacedTableName(resource)
@@ -49,7 +49,7 @@ func (p *dynamoResourceDB) tableForResourceNamed(resourceName string) dynamo.Tab
 	return p.db.Table(p.tableNameForResourceNamed(resourceName))
 }
 
-func (p *dynamoResourceDB) namespacedTable(resource *api.ResourceDefinition) dynamo.Table {
+func (p *dynamoResourceDB) namespacedTable(resource *api.CustomResourceDefinition) dynamo.Table {
 	return p.tableForResourceNamed(resource.Metadata.Name)
 }
 
@@ -121,6 +121,6 @@ func NewDB(configFile string, namespace string) (SingleResourceDB, error) {
 		db:           db,
 		session:      sess,
 		namespace:    namespace,
-		resourceDefs: config.Spec.ResourceDefinitions,
+		resourceDefs: config.Spec.CustomResourceDefinitions,
 	}, nil
 }

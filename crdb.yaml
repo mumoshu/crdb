@@ -4,20 +4,20 @@ spec:
   # You can define resource definitions inline i.e. within `crdb.yaml`
   #
   # See crdb.2.yaml for an alternative of using remote datastore
-  resourceDefinitions:
-  - kind: ResourceDefinition
+  customResourceDefinitions:
+  - kind: CustomResourceDefinition
     metadata:
       name: cluster
     spec:
       names:
         kind: Cluster
-  - kind: ResourceDefinition
+  - kind: CustomResourceDefinition
     metadata:
       name: deployment
     spec:
       names:
         kind: Deployment
-  - kind: ResourceDefinition
+  - kind: CustomResourceDefinition
     metadata:
       name: application
     spec:

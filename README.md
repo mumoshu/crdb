@@ -58,7 +58,7 @@ $ go get github.com/mumoshu/crdb
 metadata:
   name: static
 spec:
-  - kind: ResourceDefinition
+  - kind: CustomResourceDefinition
     metadata:
       name: cluster
     spec:
@@ -178,8 +178,8 @@ In static configuration, you provide one or more resource definitions in `crdb.y
 metadata:
   name: static
 spec:
-  resourceDefinitions:
-  - kind: ResourceDefinition
+  customResourceDefinitions:
+  - kind: CustomResourceDefinition
     metadata:
       name: cluster
     spec:
@@ -198,7 +198,7 @@ More concretely:
 
 In `dynamic` configuration, you just tell `crdb` to read resource definitions from the specified source.
 
-An example `crdb.yaml` that loads resource definitions from a DynamoDB table named `crdb-dynamic-resourcedefinitions` would look like:
+An example `crdb.yaml` that loads resource definitions from a DynamoDB table named `crdb-dynamic-customresourcedefinitions` would look like:
 
 ```yaml
 metadata:
@@ -210,13 +210,13 @@ spec:
 Next, create your resource definition on DynamoDB:
 
 ```console
-$ crdb apply -f example/cluster.resourecdefinition.yaml
+$ crdb apply -f example/cluster.crd.yaml
 ```
 
-Assuming the `cluster.resourcedefinition.yaml` looked like:
+Assuming the `cluster.crd.yaml` looked like:
 
 ```yaml
-kind: ResourceDefinition
+kind: CustomResourceDefinition
 metadata:
   name: cluster
 spec:

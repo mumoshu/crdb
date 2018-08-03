@@ -1,4 +1,4 @@
-kind: ResourceDefinition
+kind: CustomResourceDefinition
 metadata:
   name: deployment
 spec:

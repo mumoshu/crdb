@@ -33,7 +33,7 @@ func (p *dynamoResourceDB) apply(resource *api.Resource) error {
 	resource.Metadata.CreationTimestamp = time.Now()
 	resource.Metadata.UpdateTimestamp = time.Now()
 
-	var resourceDef *api.ResourceDefinition
+	var resourceDef *api.CustomResourceDefinition
 	kind := resource.Kind
 	for _, r := range p.resourceDefs {
 		if r.ResourceKind() == kind {

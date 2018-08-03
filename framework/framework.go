@@ -63,7 +63,7 @@ func LoadConfigFromYaml(data []byte) (*api.Config, error) {
 		if err != nil {
 			return nil, err
 		}
-		config.Spec.ResourceDefinitions = append(config.Spec.ResourceDefinitions, remoteConfig.Spec.ResourceDefinitions...)
+		config.Spec.CustomResourceDefinitions = append(config.Spec.CustomResourceDefinitions, remoteConfig.Spec.CustomResourceDefinitions...)
 	}
 	return &config, nil
 }
