@@ -18,6 +18,7 @@ const HashKeyName = "name_hash_key"
 
 type SingleResourceDB interface {
 	Get(resource, name string, selectors []string, output string, watch bool) (api.Resources, error)
+	Wait(resource, name, query, output string) error
 	Apply(file string) error
 	Delete(resource, name string) error
 }

@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
-	"fmt"
 	"syscall"
 )
 

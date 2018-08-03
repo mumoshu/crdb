@@ -2,8 +2,8 @@ package api
 
 type CustomResourceDefinition struct {
 	// CustomResourceDefinition
-	Kind     string                 `dynamo:"kind" json:"kind"`
-	Metadata Metadata               `dynamo:"metadata" json:"metadata"`
+	Kind     string                       `dynamo:"kind" json:"kind"`
+	Metadata Metadata                     `dynamo:"metadata" json:"metadata"`
 	Spec     CustomResourceDefinitionSpec `dynamo:"spec" json:"spec"`
 }
 

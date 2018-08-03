@@ -48,6 +48,24 @@
   version = "v2.0.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/elgs/gojq"
+  packages = ["."]
+  revision = "81fa9a608a130323eaf4b4fc00224f7a467ffbd1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/elgs/gosplitargs"
+  packages = ["."]
+  revision = "a491c5eeb3c841d55913cf4888f5c957be4c598d"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/elgs/jsonql"
+  packages = ["."]
+  revision = "610eaa48db88849a5284b57742db92b80fe66350"
+
+[[projects]]
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
   revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
@@ -193,6 +211,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "598efb2e18137cf5f96791a20425c6cda51df6c767e8978f42cd5058912d9b72"
+  inputs-digest = "38b4caded190c61a24a0ab68efa7df259b0fc7f1997ff0bba42e95be37034f02"
   solver-name = "gps-cdcl"
   solver-version = 1
