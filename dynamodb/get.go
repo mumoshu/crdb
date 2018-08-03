@@ -11,6 +11,7 @@ import (
 	"github.com/mumoshu/crdb/api"
 	"os"
 	"os/signal"
+	"github.com/mumoshu/crdb/framework"
 )
 
 func (p *dynamoResourceDB) Get(resource, name string, selectors []string, output string, watch bool) (api.Resources, error) {
@@ -44,14 +45,14 @@ func (p *dynamoResourceDB) get(resource, name string, selectors []string, output
 
 	if watch {
 		for _, r := range resources {
-			println(r.Format(output))
+			framework.WriteToStdout(r.Format(output))
 		}
 		err := p.streamSync(resource, selectors, output)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		println(resources.Format(output))
+		framework.WriteToStdout(resources.Format(output))
 	}
 
 	return resources, err
@@ -71,7 +72,7 @@ func (p *dynamoResourceDB) streamSync(resource string, selectors []string, outpu
 			if err := dynamo.UnmarshalItem(record.Dynamodb.NewImage, &resource); err != nil {
 				panic(err)
 			}
-			fmt.Printf("%s\n", resource.Format(output))
+			framework.WriteToStdout(resource.Format(output))
 		}
 	}(ch)
 
@@ -107,14 +108,14 @@ func (p *dynamoResourceDB) query(resource string, selectors []string, output str
 
 	if watch {
 		for _, r := range resources {
-			println(r.Format(output))
+			framework.WriteToStdout(r.Format(output))
 		}
 		err := p.streamSync(resource, selectors, output)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		println(resources.Format(output))
+		framework.WriteToStdout(resources.Format(output))
 	}
 
 	return resources, err

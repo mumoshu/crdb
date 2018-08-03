@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+func WriteToStdout(message string) {
+	os.Stdout.WriteString(message + "\n")
+}
+
+func WriteToStderr(message string) {
+	println(message)
+}
+
 func LoadResourceFromYaml(data []byte) (*api.Resource, error) {
 	var resource api.Resource
 	err := yaml.Unmarshal(data, &resource)
