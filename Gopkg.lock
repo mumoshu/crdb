@@ -35,6 +35,7 @@
     "service/dynamodb",
     "service/dynamodb/dynamodbattribute",
     "service/dynamodb/dynamodbiface",
+    "service/dynamodbstreams",
     "service/sts"
   ]
   revision = "8475c414b1bd58b8cc214873a8854e3a621e67d7"
@@ -63,21 +64,6 @@
   packages = ["."]
   revision = "358ee7663966325963d4e8b2e1fbd570c5195153"
   version = "v1.38.1"
-
-[[projects]]
-  name = "github.com/go-playground/locales"
-  packages = [
-    ".",
-    "currency"
-  ]
-  revision = "f63010822830b6fe52288ee52d5a1151088ce039"
-  version = "v0.12.1"
-
-[[projects]]
-  name = "github.com/go-playground/universal-translator"
-  packages = ["."]
-  revision = "b32fa301c9fe55953584134cb6853a13c87ec0a1"
-  version = "v0.16.0"
 
 [[projects]]
   branch = "master"
@@ -199,12 +185,6 @@
   version = "v0.3.0"
 
 [[projects]]
-  name = "gopkg.in/go-playground/validator.v9"
-  packages = ["."]
-  revision = "ab2a8a99087e827c9af87ed6777ba897348fb178"
-  version = "v9.20.2"
-
-[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -213,6 +193,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "02cb614adf4764c2666de32a1d610e2b6408fc2551ae2cf60f84b176e8a2b7d4"
+  inputs-digest = "598efb2e18137cf5f96791a20425c6cda51df6c767e8978f42cd5058912d9b72"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/guregu/dynamo"
 	"github.com/mumoshu/crdb/api"
 	"github.com/mumoshu/crdb/framework"
 	"os"
@@ -74,7 +75,7 @@ func (p *dynamoResourceDB) apply(resource *api.Resource) error {
 	if aerr, ok := err.(awserr.Error); ok {
 		switch aerr.Code() {
 		case dynamodb.ErrCodeResourceNotFoundException:
-			if err := p.db.CreateTable(p.tableNameForResourceNamed(resourceDef.Metadata.Name), resource).Run(); err != nil {
+			if err := p.db.CreateTable(p.tableNameForResourceNamed(resourceDef.Metadata.Name), resource).Stream(dynamo.NewImageView).Run(); err != nil {
 				return err
 			}
 			for {

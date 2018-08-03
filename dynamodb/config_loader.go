@@ -13,7 +13,7 @@ import (
 const databasePrefix = "crdb-"
 
 func LoadConfigFromDynamoDB(table string, context *api.Config) (*api.Config, error) {
-	db, err := newDynamoDBClient()
+	db, err := newDefaultDynamoDBClient()
 	if err != nil {
 		return nil, err
 	}

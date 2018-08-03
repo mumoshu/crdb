@@ -44,3 +44,22 @@ func (r Resources) Format(tpe string) string {
 		panic(fmt.Sprintf("unexpected output format: %s", tpe))
 	}
 }
+
+func (r Resource) Format(tpe string) string {
+	switch tpe {
+	case "json":
+		raw, err := json.MarshalIndent(r, "", "  ")
+		if err != nil {
+			log.Panicf("unexpected error: %v", err)
+		}
+		return string(raw)
+	case "yaml":
+		raw, err := yaml.Marshal(r)
+		if err != nil {
+			log.Panicf("unepected error: %v", err)
+		}
+		return string(raw)
+	default:
+		panic(fmt.Sprintf("unexpected output format: %s", tpe))
+	}
+}

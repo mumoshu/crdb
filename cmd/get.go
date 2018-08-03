@@ -21,6 +21,7 @@ import (
 
 type GetOptions struct {
 	Selectors []string
+	Watch     bool
 }
 
 var getOpts GetOptions
@@ -49,17 +50,17 @@ func NewCmdGet() *cobra.Command {
 			} else {
 				name = ""
 			}
-			resources, err := db.Get(args[0], name, getOpts.Selectors)
+			_, err = db.Get(args[0], name, getOpts.Selectors, globalOpts.Output, getOpts.Watch)
 			if err != nil {
 				return err
 			}
-			println(resources.Format(globalOpts.Output))
 			return nil
 		},
 	}
 
 	flags := cmd.Flags()
 	flags.StringSliceVarP(&getOpts.Selectors, "selector", "l", []string{}, "Selector (label query) to filter on, supports '=', '==', and '!='.(e.g. -l key1=value1,key2=value2)")
+	flags.BoolVarP(&getOpts.Watch, "watch", "w", false, "After listing/getting the requested object, watch for changes. Uninitialized objects are excluded if no object name is provided.")
 
 	return cmd
 

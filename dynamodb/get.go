@@ -6,17 +6,25 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/guregu/dynamo"
 	"github.com/mumoshu/crdb/api"
+	"os"
+	"os/signal"
 )
 
-func (p *dynamoResourceDB) Get(resource, name string, selectors []string) (api.Resources, error) {
+func (p *dynamoResourceDB) Get(resource, name string, selectors []string, output string, watch bool) (api.Resources, error) {
+	var err error
+	var resources api.Resources
 	if name != "" {
-		return p.get(resource, name, selectors)
+		resources, err = p.get(resource, name, selectors, output, watch)
+	} else {
+		resources, err = p.query(resource, selectors, output, watch)
 	}
-	return p.query(resource, selectors)
+	return resources, err
 }
 
-func (p *dynamoResourceDB) get(resource, name string, selectors []string) (api.Resources, error) {
+func (p *dynamoResourceDB) get(resource, name string, selectors []string, output string, watch bool) (api.Resources, error) {
 	var err error
 	resources := api.Resources{}
 	if len(selectors) > 0 {
@@ -33,10 +41,56 @@ func (p *dynamoResourceDB) get(resource, name string, selectors []string) (api.R
 	} else if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeResourceNotFoundException {
 		return nil, fmt.Errorf(`%s "%s" not found: no dynamodb table named "%s" does not exist`, resource, name, p.tableNameForResourceNamed(resource))
 	}
+
+	if watch {
+		for _, r := range resources {
+			println(r.Format(output))
+		}
+		err := p.streamSync(resource, selectors, output)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		println(resources.Format(output))
+	}
+
 	return resources, err
 }
 
-func (p *dynamoResourceDB) query(resource string, selectors []string) (api.Resources, error) {
+func (p *dynamoResourceDB) streamSync(resource string, selectors []string, output string) error {
+	fmt.Fprintf(os.Stderr, "starting to stream %s changes\n", resource)
+	ch, errCh, err := p.streamForResourceNamed(resource)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "started streaming %s changes\n", resource)
+
+	go func(ch <-chan *dynamodbstreams.Record) {
+		for record := range ch {
+			resource := &api.Resource{}
+			if err := dynamo.UnmarshalItem(record.Dynamodb.NewImage, &resource); err != nil {
+				panic(err)
+			}
+			fmt.Printf("%s\n", resource.Format(output))
+		}
+	}(ch)
+
+	go func(errCh <-chan error) {
+		for err := range errCh {
+			fmt.Fprintf(os.Stderr, "stream error: %v\n", err)
+		}
+	}(errCh)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	for range c {
+		fmt.Fprintln(os.Stderr, "interrupted")
+		return nil
+	}
+	return nil
+}
+
+func (p *dynamoResourceDB) query(resource string, selectors []string, output string, watch bool) (api.Resources, error) {
 	var err error
 	resources := api.Resources{}
 	if len(selectors) > 0 {
@@ -50,6 +104,19 @@ func (p *dynamoResourceDB) query(resource string, selectors []string) (api.Resou
 	} else if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeResourceNotFoundException {
 		return nil, fmt.Errorf(`no %s found: dynamodb table named "%s" does not exist`, resource, p.tableNameForResourceNamed(resource))
 	}
+
+	if watch {
+		for _, r := range resources {
+			println(r.Format(output))
+		}
+		err := p.streamSync(resource, selectors, output)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		println(resources.Format(output))
+	}
+
 	return resources, err
 }
 
@@ -68,7 +135,7 @@ func exprAndArgs(selectors []string) (string, []interface{}) {
 			op = "="
 		}
 		args = append(args, k, v)
-		conds = append(conds, fmt.Sprintf("'metadata'.$ %s ?", op))
+		conds = append(conds, fmt.Sprintf("'metadata'.'labels'.$ %s ?", op))
 	}
 	expr := strings.Join(conds, "AND")
 	return expr, args
