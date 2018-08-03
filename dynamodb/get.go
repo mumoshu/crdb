@@ -47,7 +47,7 @@ func (p *dynamoResourceDB) get(resource, name string, selectors []string, output
 		for _, r := range resources {
 			framework.WriteToStdout(r.Format(output))
 		}
-		err := p.streamSync(resource, selectors, output)
+		err := p.streamSync(resource, name, selectors, output)
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +58,7 @@ func (p *dynamoResourceDB) get(resource, name string, selectors []string, output
 	return resources, err
 }
 
-func (p *dynamoResourceDB) streamSync(resource string, selectors []string, output string) error {
+func (p *dynamoResourceDB) streamSync(resource, name string, selectors []string, output string) error {
 	fmt.Fprintf(os.Stderr, "starting to stream %s changes\n", resource)
 	ch, errCh, err := p.streamForResourceNamed(resource)
 	if err != nil {
@@ -72,7 +72,9 @@ func (p *dynamoResourceDB) streamSync(resource string, selectors []string, outpu
 			if err := dynamo.UnmarshalItem(record.Dynamodb.NewImage, &resource); err != nil {
 				panic(err)
 			}
-			framework.WriteToStdout(resource.Format(output))
+			if name == "" || name == resource.NameHashKey {
+				framework.WriteToStdout(resource.Format(output))
+			}
 		}
 	}(ch)
 
@@ -110,7 +112,7 @@ func (p *dynamoResourceDB) query(resource string, selectors []string, output str
 		for _, r := range resources {
 			framework.WriteToStdout(r.Format(output))
 		}
-		err := p.streamSync(resource, selectors, output)
+		err := p.streamSync(resource, "", selectors, output)
 		if err != nil {
 			return nil, err
 		}
