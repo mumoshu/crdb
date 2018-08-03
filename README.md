@@ -235,22 +235,23 @@ More concretely:
 
 ### List-Watch
 
-- `crdb get myresource --watch` to stream resource changes, including creations, updates, and deletions.
+- [x] `crdb get myresource --watch` to stream resource changes, including creations, updates, and deletions.
 
 ### Wait for condition
 
-- `crdb wait myresource foo --until jsonql="status.phase = 'Done'"` to wait until `myresource` named `foo` matches the [jsonql](https://github.com/elgs/jsonql) expression.
-
+- [ ] `crdb wait myresource foo --until jsonql="status.phase = 'Done'"` to wait until `myresource` named `foo` matches the [jsonql](https://github.com/elgs/jsonql) expression.
+- [ ] `crdb wait myresource foo --until ... --timeout 10s` adds timeout to the above
 ### Resource Logs
 
-- `crdb writelogs myresource foo -f logs.txt` to write logs. logs can be streamed from another clients.
-- `crdb readlogs myresource foo -f` to stream logs associated to the resource
+- [ ] `crdb logs write myresource foo -f logs.txt` to write logs. logs can be streamed from another clients.
+- [ ] `crdb logs read myresource foo -f` to stream logs associated to the resource
 
 ### Usability Improvements
 
-- `crdb wait myresource foo --logs --until jsonql="status.phase = 'Done'"` to wait until `myresource` named `foo` matches the [jsonql](https://github.com/elgs/jsonql) expression, while streaming all the logs associated to the resource until the end
-- `crdb gen iampolicy [readonly|writeonly|readwrite] myresource` to generate cloud IAM policy like AWS IAM policy to ease setting up least privilege for your developers
-- `crdb template -f myresoruce.yaml.tpl --pipe-to "crdb apply -f -"` to consume ndjson input to apply execute the specified command with the input generated from the template
+- [ ] `crdb wait myresource foo --logs --until jsonql="status.phase = 'Done'"` to wait until `myresource` named `foo` matches the [jsonql](https://github.com/elgs/jsonql) expression, while streaming all the logs associated to the resource until the end
+- [ ] `crdb gen iampolicy [readonly|writeonly|readwrite] myresource` to generate cloud IAM policy like AWS IAM policy to ease setting up least privilege for your developers
+- [ ] `crdb template -f myresoruce.yaml.tpl --pipe-to "crdb apply -f -"` to consume ndjson input to apply execute the specified command with the input generated from the template
+- [ ] `crdb init --source dynamodb` to generate `crdb.yaml`
 
 ## Contributing
 
