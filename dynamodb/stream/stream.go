@@ -12,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"sync"
+	"fmt"
+	"os"
 )
 
 type StreamSubscriber struct {
@@ -53,7 +55,7 @@ func (r *StreamSubscriber) GetStreamDataAsync() (<-chan *dynamodbstreams.Record,
 	shardsReloadRequests <- struct{}{}
 
 	readingShards := make(map[string]struct{})
-	shardProcessingLimit := 5
+	shardProcessingLimit := 10
 	shardIteratorInputs := make(chan *dynamodbstreams.GetShardIteratorInput, shardProcessingLimit)
 	lock := sync.Mutex{}
 
@@ -67,6 +69,11 @@ func (r *StreamSubscriber) GetStreamDataAsync() (<-chan *dynamodbstreams.Record,
 		errCh <- err
 		return ch, errCh
 	}
+	numShards := len(shards)
+	if numShards > shardProcessingLimit {
+		panic(fmt.Errorf("too many shards: crdb supports up to %d, but there were %d shards", shardProcessingLimit, numShards))
+	}
+	fmt.Fprintf(os.Stderr, "reading %d shards\n", numShards)
 	for _, shard := range shards {
 		if _, ok := readingShards[*shard.ShardId]; !ok {
 			readingShards[*shard.ShardId] = struct{}{}
