@@ -12,13 +12,14 @@ import (
 	"github.com/mumoshu/crdb/dynamodb/stream"
 	"github.com/mumoshu/crdb/framework"
 	"os"
+	"time"
 )
 
 const HashKeyName = "name_hash_key"
 
 type SingleResourceDB interface {
 	Get(resource, name string, selectors []string, output string, watch bool) (api.Resources, error)
-	Wait(resource, name, query, output string) error
+	Wait(resource, name, query, output string, timeout time.Duration, logs bool) error
 	Apply(file string) error
 	Delete(resource, name string) error
 }
@@ -26,6 +27,7 @@ type SingleResourceDB interface {
 type dynamoResourceDB struct {
 	databaseName string
 	db           *dynamo.DB
+	logs         *cwlogs
 	session      *session.Session
 	namespace    string
 	resourceDefs []api.CustomResourceDefinition
@@ -116,10 +118,16 @@ func NewDB(configFile string, namespace string) (SingleResourceDB, error) {
 		return nil, err
 	}
 	db := dynamo.New(sess)
+
+	logs, err := newLogs(config, namespace, sess)
+	if err != nil {
+		return nil, err
+	}
 	//fmt.Fprintf(os.Stderr, "%+v\n", config)
 	return &dynamoResourceDB{
 		databaseName: config.Metadata.Name,
 		db:           db,
+		logs:         logs,
 		session:      sess,
 		namespace:    namespace,
 		resourceDefs: config.Spec.CustomResourceDefinitions,

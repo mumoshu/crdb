@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/mumoshu/crdb/api"
 	"github.com/mumoshu/crdb/dynamodb/awssession"
@@ -38,6 +39,10 @@ func NewLogs(configFile string, namespace string) (*cwlogs, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newLogs(config, namespace, sess)
+}
+
+func newLogs(config *api.Config, namespace string, sess *session.Session) (*cwlogs, error) {
 	return &cwlogs{
 		client:    cloudwatchlogs.New(sess),
 		config:    config,
@@ -109,15 +114,7 @@ func (s *logStreams) get() []*string {
 }
 
 func (c *cwlogs) Read(resource, name string, since time.Duration, follow bool) error {
-	logGroup := fmt.Sprintf("%s%s-%s-%s", databasePrefix, c.config.Metadata.Name, c.namespace, resource)
-	var startTime *time.Time
-	if since.Nanoseconds() == 0 {
-		startTime = nil
-	} else {
-		t := time.Now().Add(-since)
-		startTime = &t
-	}
-	logsCh, errCh := c.readLogEvents(logGroup, name, follow, startTime)
+	logsCh, errCh := c.read(resource, name, since, follow)
 	interrupts := make(chan os.Signal, 1)
 	signal.Notify(interrupts, os.Interrupt)
 	for {
@@ -142,6 +139,18 @@ func (c *cwlogs) Read(resource, name string, since time.Duration, follow bool) e
 		}
 	}
 	return nil
+}
+
+func (c *cwlogs) read(resource, name string, since time.Duration, follow bool) (<-chan *cloudwatchlogs.FilteredLogEvent, <-chan error) {
+	logGroup := fmt.Sprintf("%s%s-%s-%s", databasePrefix, c.config.Metadata.Name, c.namespace, resource)
+	var startTime *time.Time
+	if since.Nanoseconds() == 0 {
+		startTime = nil
+	} else {
+		t := time.Now().Add(-since)
+		startTime = &t
+	}
+	return c.readLogEvents(logGroup, name, follow, startTime)
 }
 
 func (c *cwlogs) Write(resource, name string, file string) error {

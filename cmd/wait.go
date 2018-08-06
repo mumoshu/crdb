@@ -17,9 +17,12 @@ package cmd
 import (
 	"github.com/mumoshu/crdb/dynamodb"
 	"github.com/spf13/cobra"
+	"time"
 )
 
 type WaitOptions struct {
+	Logs    bool
+	Timeout time.Duration
 }
 
 var waitOpts WaitOptions
@@ -41,9 +44,14 @@ func NewCmdWait() *cobra.Command {
 				return err
 			}
 
-			return db.Wait(args[0], args[1], args[2], globalOpts.Output)
+			return db.Wait(args[0], args[1], args[2], globalOpts.Output, waitOpts.Timeout, waitOpts.Logs)
 		},
 	}
+
+	flags := cmd.Flags()
+	flags.DurationVar(&waitOpts.Timeout, "timeout", 0, "Stop after a duration like 5s, 2m, or 3h. Defaults to 0s=forever.")
+	flags.BoolVar(&waitOpts.Logs, "logs", false, "Specify if the logs should be streamed.")
+
 	return cmd
 
 }
