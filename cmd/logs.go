@@ -55,7 +55,7 @@ func NewCmdLogs() *cobra.Command {
 				return err
 			}
 
-			return logs.Read(args[0], args[1], logsReadOpts.Since, logsReadOpts.Follow)
+			return logs.ReadPrint(args[0], args[1], logsReadOpts.Since, logsReadOpts.Follow)
 	},
 	}
 	rflags := readCmd.Flags()

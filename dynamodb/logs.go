@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"sync"
 	"time"
+	"errors"
 )
 
 const SecondInMillis = 1000
@@ -121,7 +122,57 @@ func (e *ErrLogsNotFound) Error() string {
 	return e.msg
 }
 
-func (c *cwlogs) Read(resource, name string, since time.Duration, follow bool) error {
+func (c *cwlogs) Read(resource, name string, since time.Duration, follow bool) (<-chan string, <-chan error) {
+	msgs := make(chan string)
+	errs := make(chan error)
+
+	go func() {
+		defer close(msgs)
+		defer close(errs)
+
+		streamMsgs, streamErrs := c.read(resource, name, since, follow)
+
+		interrupts := make(chan os.Signal, 1)
+		defer close(interrupts)
+		signal.Notify(interrupts, os.Interrupt)
+
+		for streamMsgs != nil || streamErrs != nil {
+			select {
+			case <-interrupts:
+				errs <- errors.New("read interrupted")
+				return
+			case e, ok := <-streamErrs:
+				if !ok {
+					streamErrs = nil
+				}
+				if e != nil {
+					switch typed := e.(type) {
+					case awserr.Error:
+						if typed.Code() == cloudwatchlogs.ErrCodeResourceNotFoundException {
+							errs <- &ErrLogsNotFound{fmt.Sprintf("log stream for resource=%s name=%s does not exist (yet)", resource, name)}
+						} else {
+							errs <- e
+						}
+					default:
+						errs <- e
+					}
+				}
+			case log, ok := <-streamMsgs:
+				if !ok {
+					streamMsgs = nil
+				}
+				if log != nil {
+					msgs <- *log.Message
+				}
+			}
+		}
+	}()
+
+	return msgs, errs
+}
+
+
+func (c *cwlogs) ReadPrint(resource, name string, since time.Duration, follow bool) error {
 	logsCh, errCh := c.read(resource, name, since, follow)
 	interrupts := make(chan os.Signal, 1)
 	defer close(interrupts)

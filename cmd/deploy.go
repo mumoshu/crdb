@@ -207,16 +207,58 @@ func NewCmdDeploy() *cobra.Command {
 							install := installs[0]
 							installName := install.NameHashKey
 
-							err = logs.Read("install", installName, 0, true)
-							switch err.(type) {
-							case *dynamodb.ErrLogsNotFound:
-								fmt.Fprintf(os.Stderr, "waiting for logs of %s to flow\n", installName)
-								time.Sleep(5 * time.Second)
-								continue L
-							case nil:
-								break L
-							default:
-								return err
+							completion := make(chan bool)
+
+							go func() {
+								for {
+									is, err := db.GetSync("install", installName, []string{})
+									if err != nil {
+										fmt.Fprintf(os.Stderr, "error while polling install status. ignoring: %v\n", err)
+									}
+									if is != nil {
+										ins := is[0]
+										status := ins.Spec["status"]
+										fmt.Fprintf(os.Stderr, "%s: status=%s\n", installName, status)
+										if status == "completed" {
+											completion <- true
+											return
+										}
+									}
+									time.Sleep(10 * time.Second)
+								}
+							}()
+
+							logMsgs, logErrs := logs.Read("install", installName, 0, true)
+
+							for logMsgs != nil || logErrs != nil {
+								select {
+								case _, ok := <-completion:
+									if ok {
+										logMsgs = nil
+										logErrs = nil
+										break L
+									}
+								case msg, ok := <-logMsgs:
+									if ok {
+										fmt.Fprintf(os.Stderr, "%s: %s", installName, msg)
+									} else {
+										logMsgs = nil
+									}
+								case err, ok := <-logErrs:
+									logErrs = nil
+									switch err.(type) {
+									case *dynamodb.ErrLogsNotFound:
+										fmt.Fprintf(os.Stderr, "waiting for logs of %s to flow\n", installName)
+										time.Sleep(5 * time.Second)
+										continue L
+									case nil:
+										if ok {
+											panic("[bug] expected error, but it was nil")
+										}
+									default:
+										return err
+									}
+								}
 							}
 						case error:
 							return err
