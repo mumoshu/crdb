@@ -17,10 +17,13 @@ import (
 
 const HashKeyName = "name_hash_key"
 
-type SingleResourceDB interface {
-	Get(resource, name string, selectors []string, output string, watch bool) (api.Resources, error)
+type dbClient interface {
+	GetPrint(resource, name string, selectors []string, output string, watch bool) error
+	GetAsync(resource, name string, selectors []string, watch bool) (<-chan *api.Resource, <-chan error)
+	GetSync(resource, name string, selectors []string) ([]*api.Resource, error)
 	Wait(resource, name, query, output string, timeout time.Duration, logs bool) error
-	Apply(file string) error
+	ApplyFile(file string) error
+	Apply(resource *api.Resource) error
 	Delete(resource, name string) error
 }
 
@@ -108,7 +111,7 @@ func (p *dynamoResourceDB) streamForResourceNamed(resourceName string) (<-chan *
 	return p.streamForTable(p.tableNameForResourceNamed(resourceName))
 }
 
-func NewDB(configFile string, namespace string) (SingleResourceDB, error) {
+func NewDB(configFile string, namespace string) (dbClient, error) {
 	config, err := framework.LoadConfigFromYamlFile(configFile)
 	if err != nil {
 		return nil, err

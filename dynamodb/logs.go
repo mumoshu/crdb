@@ -153,6 +153,19 @@ func (c *cwlogs) read(resource, name string, since time.Duration, follow bool) (
 	return c.readLogEvents(logGroup, name, follow, startTime)
 }
 
+func (c *cwlogs) Writer(resource, name string) (io.Writer, error) {
+	r, w := io.Pipe()
+
+	buf := new(bytes.Buffer)
+	go func() {
+		buf.ReadFrom(r)
+		fmt.Fprint(w, "some text to be read\n")
+		w.Close()
+	}()
+
+	return w, nil
+}
+
 func (c *cwlogs) Write(resource, name string, file string) error {
 	var rawInput []byte
 	if file == "-" {

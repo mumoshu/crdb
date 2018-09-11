@@ -1,0 +1,6 @@
+kind: CustomResourceDefinition
+metadata:
+  name: project
+spec:
+  names:
+    kind: Project

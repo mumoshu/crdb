@@ -36,7 +36,7 @@ func NewCmdApply() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return db.Apply(applyOpts.File)
+			return db.ApplyFile(applyOpts.File)
 		},
 	}
 

@@ -1,0 +1,6 @@
+kind: CustomResourceDefinition
+metadata:
+  name: release
+spec:
+  names:
+    kind: Release

@@ -1,0 +1,6 @@
+kind: CustomResourceDefinition
+metadata:
+  name: install
+spec:
+  names:
+    kind: Install

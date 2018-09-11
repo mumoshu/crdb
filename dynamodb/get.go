@@ -15,28 +15,35 @@ import (
 	"time"
 )
 
-func (p *dynamoResourceDB) Get(resource, name string, selectors []string, output string, watch bool) (api.Resources, error) {
-	var err error
-	var resources api.Resources
-	if name != "" {
-		resources, err = p.getWatch(resource, name, selectors, output, watch)
-	} else {
-		resources, err = p.queryWatch(resource, selectors, output, watch)
-	}
-	return resources, err
+func (p *dynamoResourceDB) GetPrint(resource, name string, selectors []string, output string, watch bool) error {
+	var resCh <-chan *api.Resource
+	var errCh <-chan error
+
+	resCh, errCh = p.GetAsync(resource, name, selectors, watch)
+
+	return p.printStreamedResourcesSync(resCh, errCh, output, watch)
 }
 
 func (p *dynamoResourceDB) get(resource, name string, selectors []string) (api.Resources, error) {
 	var err error
 	resources := api.Resources{}
-	if len(selectors) > 0 {
-		expr, args := exprAndArgs(selectors)
-		err = p.tableForResourceNamed(resource).Get(HashKeyName, name).Filter(expr, args...).All(&resources)
+	if name == "" {
+		if len(selectors) > 0 {
+			expr, args := exprAndArgs(selectors)
+			err = p.tableForResourceNamed(resource).Get(HashKeyName, name).Filter(expr, args...).All(&resources)
+		} else {
+			// Otherwise we getWatch this:
+			//   Error: ValidationException: Invalid FilterExpression: The expression can not be empty;
+			//   status code: 400, request id: VMUUJ9O65UABHUM12TQNFVH2SBVV4KQNSO5AEMVJF66Q9ASUAAJG
+			err = p.tableForResourceNamed(resource).Get(HashKeyName, name).All(&resources)
+		}
 	} else {
-		// Otherwise we getWatch this:
-		//   Error: ValidationException: Invalid FilterExpression: The expression can not be empty;
-		//   status code: 400, request id: VMUUJ9O65UABHUM12TQNFVH2SBVV4KQNSO5AEMVJF66Q9ASUAAJG
-		err = p.tableForResourceNamed(resource).Get(HashKeyName, name).All(&resources)
+		if len(selectors) > 0 {
+			expr, args := exprAndArgs(selectors)
+			err = p.tableForResourceNamed(resource).Scan().Filter(expr, args...).All(&resources)
+		} else {
+			err = p.tableForResourceNamed(resource).Scan().All(&resources)
+		}
 	}
 	if err == nil && len(resources) == 0 {
 		return nil, fmt.Errorf(`%s "%s" not found: dynamodb table named "%s" exists, but no item named "%s" found`, resource, name, p.tableNameForResourceNamed(resource), name)
@@ -46,30 +53,73 @@ func (p *dynamoResourceDB) get(resource, name string, selectors []string) (api.R
 	return resources, nil
 }
 
-func (p *dynamoResourceDB) getWatch(resource, name string, selectors []string, output string, watch bool) (api.Resources, error) {
-	resources, err := p.get(resource, name, selectors)
-
-	if watch {
-		for _, r := range resources {
-			framework.WriteToStdout(r.Format(output))
+func (p *dynamoResourceDB) GetSync(resource, name string, selectors []string) ([]*api.Resource, error) {
+	rs := []*api.Resource{}
+	resources, errs := p.GetAsync(resource, name, selectors, false)
+	for {
+		select {
+		case r := <-resources:
+			rs = append(rs, r)
+		case e := <-errs:
+			return nil, e
 		}
-		err := p.printStreamedResourcesSync(resource, name, selectors, output)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		framework.WriteToStdout(resources.Format(output))
 	}
-
-	return resources, err
+	return rs, nil
 }
 
-func (p *dynamoResourceDB) printStreamedResourcesSync(resource, name string, selectors []string, output string) error {
-	ch, errCh := p.streamedResources(resource, name, selectors)
+func (p *dynamoResourceDB) GetAsync(resource, name string, selectors []string, watch bool) (<-chan *api.Resource, <-chan error) {
+	resCh := make(chan *api.Resource, 1)
+	aggErrCh := make(chan error, 1)
 
+	resources, err := p.get(resource, name, selectors)
+	if err != nil {
+		aggErrCh <- err
+
+		close(resCh)
+		close(aggErrCh)
+		return resCh, aggErrCh
+	}
+
+	if resources != nil {
+		for _, r := range resources {
+			resCh <- &r
+		}
+	}
+
+	if watch {
+		ch, errCh := p.streamedResources(resource, name, selectors)
+		go func(ch <-chan *api.Resource) {
+			defer close(resCh)
+			for resource := range ch {
+				resCh <- resource
+			}
+		}(ch)
+		go func(ch <-chan error) {
+			defer close(aggErrCh)
+			for err := range ch {
+				aggErrCh <- err
+			}
+		}(errCh)
+	} else {
+		close(resCh)
+		close(aggErrCh)
+	}
+
+	return resCh, aggErrCh
+}
+
+func (p *dynamoResourceDB) printStreamedResourcesSync(ch <-chan *api.Resource, errCh <-chan error, output string, wait bool) error {
 	go func(ch <-chan *api.Resource) {
-		for resource := range ch {
-			framework.WriteToStdout(resource.Format(output))
+		rs := []api.Resource{}
+		if wait {
+			for resource := range ch {
+				rs = append(rs, *resource)
+			}
+			framework.WriteToStdout(api.Resources(rs).Format(output))
+		} else {
+			for resource := range ch {
+				framework.WriteToStdout(resource.Format(output))
+			}
 		}
 	}(ch)
 
@@ -124,36 +174,6 @@ func waitForInterruptionOrError(errCh <-chan error) error {
 		}
 	}
 	return nil
-}
-
-func (p *dynamoResourceDB) queryWatch(resource string, selectors []string, output string, watch bool) (api.Resources, error) {
-	var err error
-	resources := api.Resources{}
-	if len(selectors) > 0 {
-		expr, args := exprAndArgs(selectors)
-		err = p.tableForResourceNamed(resource).Scan().Filter(expr, args...).All(&resources)
-	} else {
-		err = p.tableForResourceNamed(resource).Scan().All(&resources)
-	}
-	if err == nil && len(resources) == 0 {
-		return nil, fmt.Errorf(`no %s found: dynamodb table named "%s" exists, but no item found in it`, resource, p.tableNameForResourceNamed(resource))
-	} else if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeResourceNotFoundException {
-		return nil, fmt.Errorf(`no %s found: dynamodb table named "%s" does not exist`, resource, p.tableNameForResourceNamed(resource))
-	}
-
-	if watch {
-		for _, r := range resources {
-			framework.WriteToStdout(r.Format(output))
-		}
-		err := p.printStreamedResourcesSync(resource, "", selectors, output)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		framework.WriteToStdout(resources.Format(output))
-	}
-
-	return resources, err
 }
 
 func exprAndArgs(selectors []string) (string, []interface{}) {

@@ -5,3 +5,19 @@
 [[constraint]]
   name = "github.com/spf13/viper"
   version = "1.0.0"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  branch = "release-7.0"
+
+[[constraint]]
+  name = "github.com/Azure/brigade"
+  source = "github.com/mumoshu/brigade"
+  branch = "brig-run-as-lib"
+
+# Avoid:
+# # github.com/mumoshu/crdb/vendor/k8s.io/client-go/plugin/pkg/client/auth/azure
+# vendor/k8s.io/client-go/plugin/pkg/client/auth/azure/azure.go:300:8: cannot use spt.Token (type func() adal.Token) as type adal.Token in field value
+[[override]]
+  name = "github.com/Azure/go-autorest"
+  revision = "v8.0.0"

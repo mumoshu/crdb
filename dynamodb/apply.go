@@ -17,7 +17,7 @@ type PutItemOption struct {
 	File      string
 }
 
-func (p *dynamoResourceDB) Apply(file string) error {
+func (p *dynamoResourceDB) ApplyFile(file string) error {
 	return p.applyFile(file)
 }
 
@@ -26,10 +26,10 @@ func (p *dynamoResourceDB) applyFile(file string) error {
 	if err != nil {
 		return err
 	}
-	return p.apply(resource)
+	return p.Apply(resource)
 }
 
-func (p *dynamoResourceDB) apply(resource *api.Resource) error {
+func (p *dynamoResourceDB) Apply(resource *api.Resource) error {
 	resource.Metadata.CreationTimestamp = time.Now()
 	resource.Metadata.UpdateTimestamp = time.Now()
 

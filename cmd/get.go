@@ -50,7 +50,7 @@ func NewCmdGet() *cobra.Command {
 			} else {
 				name = ""
 			}
-			_, err = db.Get(args[0], name, getOpts.Selectors, globalOpts.Output, getOpts.Watch)
+			err = db.GetPrint(args[0], name, getOpts.Selectors, globalOpts.Output, getOpts.Watch)
 			if err != nil {
 				return err
 			}
