@@ -24,10 +24,46 @@ func (p *dynamoResourceDB) GetPrint(resource, name string, selectors []string, o
 	return p.printStreamedResourcesSync(resCh, errCh, output, watch)
 }
 
+func (p *dynamoResourceDB) GetCRDs() ([]api.CustomResourceDefinition, error) {
+	return getCRDs(p.db, p.config)
+}
+
+func getCRDs(db *dynamo.DB, context *api.Config) ([]api.CustomResourceDefinition, error) {
+	crds := []api.CustomResourceDefinition{}
+	for {
+		err := db.Table(globalTableName(context.Metadata.Name, crdName)).Scan().All(&crds)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "err: %v\n", err.Error())
+			if aerr, ok := err.(awserr.Error); ok {
+				fmt.Fprintf(os.Stderr, "aerr.Code: %v\n", aerr.Code())
+				switch aerr.Code() {
+				case dynamodb.ErrCodeResourceNotFoundException:
+				case dynamodb.ErrCodeProvisionedThroughputExceededException, dynamodb.ErrCodeLimitExceededException:
+					fmt.Fprintf(os.Stderr, "retrying in 3 secounds: %v\n", err)
+					time.Sleep(3 * time.Second)
+					continue
+				}
+			} else {
+				return nil, fmt.Errorf("unexpected error: %v", err)
+			}
+		}
+		break
+	}
+	return crds, nil
+}
+
+type ErrResourceNotFound struct {
+	msg string
+}
+
+func (e *ErrResourceNotFound) Error() string {
+	return e.msg
+}
+
 func (p *dynamoResourceDB) get(resource, name string, selectors []string) (api.Resources, error) {
 	var err error
 	resources := api.Resources{}
-	if name == "" {
+	if name != "" {
 		if len(selectors) > 0 {
 			expr, args := exprAndArgs(selectors)
 			err = p.tableForResourceNamed(resource).Get(HashKeyName, name).Filter(expr, args...).All(&resources)
@@ -46,9 +82,21 @@ func (p *dynamoResourceDB) get(resource, name string, selectors []string) (api.R
 		}
 	}
 	if err == nil && len(resources) == 0 {
-		return nil, fmt.Errorf(`%s "%s" not found: dynamodb table named "%s" exists, but no item named "%s" found`, resource, name, p.tableNameForResourceNamed(resource), name)
+		var msg string
+		if name != "" {
+			msg = fmt.Sprintf(`%s "%s" not found: dynamodb table named "%s" exists, but no item named "%s" found`, resource, name, p.tableNameForResourceNamed(resource), name)
+		} else {
+			msg = fmt.Sprintf(`no %s found: dynamodb table named "%s" exists, but no item named "%s" found`, resource, p.tableNameForResourceNamed(resource), name)
+		}
+		return nil, &ErrResourceNotFound{msg}
 	} else if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeResourceNotFoundException {
-		return nil, fmt.Errorf(`%s "%s" not found: no dynamodb table named "%s" does not exist`, resource, name, p.tableNameForResourceNamed(resource))
+		var msg string
+		if name != "" {
+			msg = fmt.Sprintf(`%s "%s" not found: no dynamodb table named "%s" exists. create it by "crdb apply -f your-new-%s.%s.yaml"`, resource, name, p.tableNameForResourceNamed(resource), resource, resource)
+		} else {
+			msg = fmt.Sprintf(`no %s found: no dynamodb table named "%s" exists. create it by "crdb apply -f your-new-%s.%s.yaml"`, resource, p.tableNameForResourceNamed(resource), resource, resource)
+		}
+		return nil, &ErrResourceNotFound{msg}
 	}
 	return resources, nil
 }
@@ -56,54 +104,68 @@ func (p *dynamoResourceDB) get(resource, name string, selectors []string) (api.R
 func (p *dynamoResourceDB) GetSync(resource, name string, selectors []string) ([]*api.Resource, error) {
 	rs := []*api.Resource{}
 	resources, errs := p.GetAsync(resource, name, selectors, false)
-	for {
+	var err error
+	for resources != nil || errs != nil {
 		select {
-		case r := <-resources:
-			rs = append(rs, r)
+		case r, ok := <-resources:
+			if !ok {
+				resources = nil
+			}
+			if r != nil {
+				rs = append(rs, r)
+			}
 		case e := <-errs:
-			return nil, e
+			if e != nil {
+				err = e
+			}
+			errs = nil
 		}
 	}
-	return rs, nil
+	return rs, err
 }
 
 func (p *dynamoResourceDB) GetAsync(resource, name string, selectors []string, watch bool) (<-chan *api.Resource, <-chan error) {
-	resCh := make(chan *api.Resource, 1)
-	aggErrCh := make(chan error, 1)
+	resCh := make(chan *api.Resource)
+	aggErrCh := make(chan error)
 
-	resources, err := p.get(resource, name, selectors)
-	if err != nil {
-		aggErrCh <- err
+	go func() {
+		defer close(resCh)
+		defer close(aggErrCh)
 
-		close(resCh)
-		close(aggErrCh)
-		return resCh, aggErrCh
-	}
-
-	if resources != nil {
-		for _, r := range resources {
-			resCh <- &r
+		resources, err := p.get(resource, name, selectors)
+		if err != nil {
+			aggErrCh <- err
+			return
 		}
-	}
 
-	if watch {
-		ch, errCh := p.streamedResources(resource, name, selectors)
-		go func(ch <-chan *api.Resource) {
-			defer close(resCh)
-			for resource := range ch {
-				resCh <- resource
+		if resources != nil {
+			for _, r := range resources {
+				var r2 api.Resource
+				r2 = r
+				resCh <- &r2
 			}
-		}(ch)
-		go func(ch <-chan error) {
-			defer close(aggErrCh)
-			for err := range ch {
-				aggErrCh <- err
+		}
+
+		if watch {
+			ch, errCh := p.streamedResources(resource, name, selectors)
+			for ch != nil || errCh != nil {
+				select {
+				case resource, ok := <-ch:
+					if !ok {
+						ch = nil
+					}
+					if resource != nil {
+						resCh <- resource
+					}
+				case err := <-errCh:
+					if err != nil {
+						aggErrCh <- err
+					}
+					errCh = nil
+				}
 			}
-		}(errCh)
-	} else {
-		close(resCh)
-		close(aggErrCh)
-	}
+		}
+	}()
 
 	return resCh, aggErrCh
 }
@@ -167,8 +229,11 @@ func waitForInterruptionOrError(errCh <-chan error) error {
 		case <-c:
 			fmt.Fprintln(os.Stderr, "interrupted")
 			return nil
-		case err := <-errCh:
-			return fmt.Errorf("stream error: %v", err)
+		case err, ok := <-errCh:
+			if ok {
+				return fmt.Errorf("stream error: %v", err)
+			}
+			return nil
 		default:
 			time.Sleep(100 * time.Millisecond)
 		}

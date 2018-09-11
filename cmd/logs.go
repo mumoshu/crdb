@@ -74,13 +74,29 @@ func NewCmdLogs() *cobra.Command {
 				return err
 			}
 
-			return logs.Write(args[0], args[1], logsWriteOpts.File)
+			return logs.WriteFile(args[0], args[1], logsWriteOpts.File)
 		},
 	}
 	wflags := writeCmd.Flags()
 	wflags.StringVarP(&logsWriteOpts.File, "file", "f", "-", "Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs.")
 
-	cmd.AddCommand(readCmd, writeCmd)
+	deleteCmd := &cobra.Command{
+		Use:   "delete RESOURCE NAME",
+		Short: "delete logs",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+
+			logs, err := dynamodb.NewLogs(globalOpts.Config, globalOpts.Namespace)
+			if err != nil {
+				return err
+			}
+
+			return logs.Delete(args[0], args[1])
+		},
+	}
+
+	cmd.AddCommand(readCmd, writeCmd, deleteCmd)
 
 	return cmd
 }

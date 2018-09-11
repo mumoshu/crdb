@@ -17,6 +17,9 @@ package cmd
 import (
 	"github.com/mumoshu/crdb/dynamodb"
 	"github.com/spf13/cobra"
+	"os"
+	"fmt"
+	"strings"
 )
 
 type GetOptions struct {
@@ -36,7 +39,7 @@ func NewCmdGet() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get RESOURCE [NAME]",
 		Short: "Displays one or more resources",
-		Args:  cobra.RangeArgs(1, 2),
+		Args:  cobra.RangeArgs(0, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
 
@@ -44,15 +47,33 @@ func NewCmdGet() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var name string
-			if len(args) > 1 {
-				name = args[1]
+
+			if len(args) == 0 {
+				crds, err := db.GetCRDs()
+				if err != nil {
+					return err
+				}
+				names := make([]string, len(crds))
+				for i, crd := range crds {
+					names[i] = fmt.Sprintf("  * %s", crd.Metadata.Name)
+				}
+				fmt.Fprintf(os.Stderr, `You must specify the type of resource to get. Valid resource types include:
+
+%s
+`, strings.Join(names, "\n"))
+				os.Exit(1)
 			} else {
-				name = ""
-			}
-			err = db.GetPrint(args[0], name, getOpts.Selectors, globalOpts.Output, getOpts.Watch)
-			if err != nil {
-				return err
+				var name string
+				if len(args) > 1 {
+					name = args[1]
+				} else {
+					name = ""
+				}
+				resource := args[0]
+				err = db.GetPrint(resource, name, getOpts.Selectors, globalOpts.Output, getOpts.Watch)
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		},

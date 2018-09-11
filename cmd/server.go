@@ -26,14 +26,16 @@ import (
 
 type GatewayOptions struct {
 	Cluster string
+	Project string
 }
 
 var gatewayOpts GatewayOptions
 
 func NewCmdGateway() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "gateway CLUSTER [PROJECT]",
-		Short: "brigade gateway that exec command according to crdb resource (changes)",
+		Use:   "gateway",
+		Short: "brigade gateway that exec command according to crdb resource changes like new deployment",
+		Args:  cobra.RangeArgs(0, 0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
 
@@ -54,14 +56,8 @@ func NewCmdGateway() *cobra.Command {
 				return err
 			}
 
-			clusterName := args[1]
-
-			var projectName string
-			if len(args) > 1 {
-				projectName = args[2]
-			} else {
-				projectName = ""
-			}
+			clusterName := gatewayOpts.Cluster
+			projectName := gatewayOpts.Project
 
 			allProjects, err := db.GetSync("project", projectName, []string{})
 			if err != nil {
@@ -227,13 +223,13 @@ events.on("exec", (e, p) => {
 			}
 
 			// <namespace=production>
-			// + myproj-app1 (application w/ id=myproj-app1 name=app1 project=myproj, app1 in project myproj)
+			// + (state) myproj-app1 (application w/ id=myproj-app1 name=app1 project=myproj, app1 in project myproj)
 			// | + upsert + version : deploy myproj/app1 --ref v1.0.0
-			// + myproj-app1 (deployment w/ id=app1 version=v1.0.0, upsert a deployment identified by id=app1)
+			// + (state) myproj-app1 (deployment w/ id=app1 version=v1.0.0, upsert a deployment identified by id=app1)
 			//    | + upsert + cluster by in-cluster server
-			//    +--+ myproj-app1-prod1 (release w/ id=app1-prod1 version=v1.0.0, list-watch all production deployments like app1, and release if missing)
+			//    +--+ (state) myproj-app1-prod1 (release w/ id=app1-prod1 version=v1.0.0, list-watch all production deployments like app1, and release if missing)
 			//    |     | created
-			//    |     +--+ myproj-app1-prod1-v1.0.0 (install w/ id=app1-prod1-v1.0.0, list-watch all prod1 releases like app1-prod1, and install if missing)
+			//    |     +--+ (history) myproj-app1-prod1-v1.0.0 (install w/ id=app1-prod1-v1.0.0, list-watch all prod1 releases like app1-prod1, and install if missing)
 			//    |
 			//    +--+ myproj-app1-prod2 (release w/ id=app1-prod2 version=v1.0.0)
 			//          |
@@ -247,7 +243,8 @@ events.on("exec", (e, p) => {
 	}
 
 	options := cmd.Flags()
-	options.StringVarP(&gatewayOpts.Cluster, "cluster", "c", "", "Unique name of the cluster on which this gateway is running")
+	options.StringVar(&gatewayOpts.Cluster, "cluster", "", "Unique name of the cluster on which this gateway is running")
+	options.StringVar(&gatewayOpts.Project, "project", "", "Unique name of the project which this gateway watches")
 	cmd.MarkFlagRequired("cluster")
 
 	return cmd

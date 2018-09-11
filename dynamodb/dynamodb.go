@@ -21,6 +21,7 @@ type dbClient interface {
 	GetPrint(resource, name string, selectors []string, output string, watch bool) error
 	GetAsync(resource, name string, selectors []string, watch bool) (<-chan *api.Resource, <-chan error)
 	GetSync(resource, name string, selectors []string) ([]*api.Resource, error)
+	GetCRDs() ([]api.CustomResourceDefinition, error)
 	Wait(resource, name, query, output string, timeout time.Duration, logs bool) error
 	ApplyFile(file string) error
 	Apply(resource *api.Resource) error
@@ -30,6 +31,7 @@ type dbClient interface {
 type dynamoResourceDB struct {
 	databaseName string
 	db           *dynamo.DB
+	config *api.Config
 	logs         *cwlogs
 	session      *session.Session
 	namespace    string
@@ -130,6 +132,7 @@ func NewDB(configFile string, namespace string) (dbClient, error) {
 	return &dynamoResourceDB{
 		databaseName: config.Metadata.Name,
 		db:           db,
+		config: config,
 		logs:         logs,
 		session:      sess,
 		namespace:    namespace,

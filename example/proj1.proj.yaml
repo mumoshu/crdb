@@ -1,0 +1,5 @@
+kind: Project
+metadata:
+  name: proj1
+  namespace: default
+spec:

@@ -19,9 +19,14 @@ import (
 	"github.com/spf13/cobra"
 	"fmt"
 	"github.com/mumoshu/crdb/api"
+	"os"
+	"strings"
+	"reflect"
+	"time"
 )
 
 type DeployOptions struct {
+	Project string
 	Ref string
 	App string
 	Watch     bool
@@ -35,9 +40,9 @@ func init() {
 
 func NewCmdDeploy() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "deploy [PROJECT]",
+		Use:   "deploy",
 		Short: "Deploys application(s) defined in PROJECT",
-		Args:  cobra.RangeArgs(1, 2),
+		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
 
@@ -51,102 +56,131 @@ func NewCmdDeploy() *cobra.Command {
 				return err
 			}
 
-			var projectName string
-			if len(args) > 1 {
-				projectName = args[1]
-			} else {
-				projectName = ""
-			}
+			targetedAppName := deployOpts.App
+			targetedProjectName := deployOpts.Project
 
-			allProjects, err := db.GetSync("project", projectName, []string{})
+			knownProjects, err := db.GetSync("project", targetedProjectName, []string{})
 			if err != nil {
 				return err
 			}
-
-			if projectName != "" {
-				noProject := true
-				for _, p := range allProjects {
-					noProject = noProject && p.NameHashKey != projectName
+			targetedProjects := map[string]*api.Resource{}
+			for _, proj := range knownProjects {
+				projName := proj.NameHashKey
+				if targetedProjectName != "" && projName != targetedProjectName {
+					continue
 				}
-				if noProject {
-					return fmt.Errorf("no project named \"%s\" found", projectName)
-				}
+				targetedProjects[projName] = proj
 			}
 
-			allApps, err := db.GetSync("application", "", []string{})
+			targetedProjectNames := make([]string, len(targetedProjects))
+			i := 0
+			for _, p := range targetedProjects {
+				targetedProjectNames[i] = fmt.Sprintf("  * %s", p.NameHashKey)
+				i ++
+			}
+			fmt.Fprintf(os.Stderr, `%d projects found:
+
+%s
+
+`, len(targetedProjectNames), strings.Join(targetedProjectNames, "\n"))
+
+			knownApps, err := db.GetSync("application", "", []string{})
 			if err != nil {
 				return err
 			}
-			apps := map[string]*api.Resource{}
-			for _, app := range allApps {
+			targetedApps := map[string]*api.Resource{}
+			for _, app := range knownApps {
 				appName := app.NameHashKey
-				if deployOpts.App != "" && appName != deployOpts.App {
+				if targetedAppName != "" && appName != targetedAppName {
 					continue
 				}
 				appProject := app.Spec["project"].(string)
-				if projectName != "" && appProject != projectName {
+				if _, ok := targetedProjects[appProject]; !ok {
 					continue
 				}
-				apps[appName] = app
+				targetedApps[appName] = app
 			}
 
-			for _, app := range apps {
+			{
+				targetedAppNames := make([]string, len(targetedApps))
+				i := 0
+				for _, app := range targetedApps {
+					targetedAppNames[i] = fmt.Sprintf("  * %s", app.NameHashKey)
+					i ++
+				}
+				fmt.Fprintf(os.Stderr, `%d applications found:
+
+%s
+
+`, len(targetedAppNames), strings.Join(targetedAppNames, "\n"))
+			}
+
+			for appName, _ := range targetedApps {
 				//sha1, err := fetchSha1ForRef(deployOpts.Ref)
 				//if err != nil {
 				//	return err
 				//}
-				sha1 := deployOpts.Ref
+				targetedSha1 := deployOpts.Ref
 
 				// e.g. "myproj_myapp1"
-				deployId := app.NameHashKey
-				deploys, err := db.GetSync("deployment", deployId, []string{})
-				if err != nil {
-					return err
-				}
-				if len(deploys) == 0 {
+				deployName := appName
+				var deploy *api.Resource
+				deploys, err := db.GetSync("deployment", deployName, []string{})
+				switch e := err.(type) {
+				case *dynamodb.ErrResourceNotFound:
 					newDeploy := &api.Resource{
-						NameHashKey: deployId,
+						NameHashKey: deployName,
+						Kind: "Deployment",
 						Metadata: api.Metadata{
-							Name: deployId,
+							Name: deployName,
 						},
 						Spec: map[string]interface{}{
-							"project": projectName,
-							"app": deployId,
-							"sha1": sha1,
+							"project": targetedProjectName,
+							"app":     appName,
+							"sha1":    targetedSha1,
 						},
 					}
 					err := db.Apply(newDeploy)
 					if err != nil {
 						return err
 					}
-					continue
+					deploy = newDeploy
+				case error:
+					return e
+				case nil:
+					deploy = deploys[0]
+				default:
+					panic(fmt.Errorf("unexpected type of error %v: %v", reflect.TypeOf(e), e))
 				}
-				deploy := deploys[0]
 
-				if deploy.Spec["sha1"].(string) == sha1 {
+				if deploy.Spec["sha1"].(string) == targetedSha1 {
 					// already deployed
 					break
 				}
 
-				deploy.Spec["sha1"] = sha1
+				deploy.Spec["sha1"] = targetedSha1
 				err = db.Apply(deploy)
 				if err != nil {
 					return err
 				}
 			}
 
-			clusters, err := db.GetSync("cluster", "", []string{})
+			targetedClusters, err := db.GetSync("cluster", "", []string{})
 			if err != nil {
 				return err
 			}
 
 			// wait for completion
-			for _, app := range apps {
-				for _, cluster := range clusters {
+			for _, app := range targetedApps {
+				appName := app.NameHashKey
+
+				for _, cluster := range targetedClusters {
+					clusterName := cluster.NameHashKey
+
 					// TODO record start time
-					for {
+					L: for {
 						// TODO timeout
-						deployId := app.NameHashKey
+						deployId := appName
 						deploys, err := db.GetSync("deployment", deployId, []string{})
 						if err != nil {
 							return err
@@ -162,22 +196,33 @@ func NewCmdDeploy() *cobra.Command {
 						//}
 						sha1 := deploy.Spec["sha1"]
 
-						installId := fmt.Sprintf("%s-%s-%s", app.NameHashKey, cluster.NameHashKey, sha1)
-						installs, err := db.GetSync("install", installId, []string{})
-						if err != nil {
-							return err
-						}
-						if len(installs) == 0 {
-							continue
-						}
-						// stream logs until end
-						install := installs[0]
+						installName := fmt.Sprintf("%s-%s-%s", appName, clusterName, sha1)
+						installs, err := db.GetSync("install", installName, []string{})
+						switch e := err.(type) {
+						case *dynamodb.ErrResourceNotFound:
+							fmt.Fprintf(os.Stderr, "waiting for install of %s to start\n", installName)
+							time.Sleep(5 * time.Second)
+						case nil:
+							// stream logs until end
+							install := installs[0]
+							installName := install.NameHashKey
 
-						err = logs.Read("install", install.NameHashKey, 0, true)
-						if err != nil {
+							err = logs.Read("install", installName, 0, true)
+							switch err.(type) {
+							case *dynamodb.ErrLogsNotFound:
+								fmt.Fprintf(os.Stderr, "waiting for logs of %s to flow\n", installName)
+								time.Sleep(5 * time.Second)
+								continue L
+							case nil:
+								break L
+							default:
+								return err
+							}
+						case error:
 							return err
+						default:
+							panic(fmt.Errorf("unexpected type of error %v: %v", reflect.TypeOf(e), e))
 						}
-						break
 					}
 				}
 			}
@@ -187,10 +232,11 @@ func NewCmdDeploy() *cobra.Command {
 	}
 
 	flags := cmd.Flags()
+	flags.StringVar(&deployOpts.Project, "project", "", "Name of the project to be deployed. Defaults to all")
 	flags.StringVar(&deployOpts.App, "app", "", "Name of the app to be deployed. Defaults to all")
 	flags.StringVarP(&deployOpts.Ref, "ref", "", "master", "Commit SHA1 or branch name to be deployed. Defaults to master")
 	flags.BoolVar(&deployOpts.Watch, "wait", false, "After listing/getting the requested object, watch for changes. Uninitialized objects are excluded if no object name is provided.")
+	cmd.MarkFlagRequired("ref")
 
 	return cmd
-
 }

@@ -1,0 +1,6 @@
+kind: Application
+metadata:
+  name: proj1-app1
+  namespace: default
+spec:
+  project: proj1

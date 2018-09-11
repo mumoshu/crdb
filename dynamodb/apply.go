@@ -42,7 +42,7 @@ func (p *dynamoResourceDB) Apply(resource *api.Resource) error {
 		}
 	}
 	if resourceDef == nil {
-		return fmt.Errorf("no resource definition found in %v: %s", p.resourceDefs, kind)
+		return fmt.Errorf("no resource definition found in %v: name=%s kind=%s", p.resourceDefs, resource.NameHashKey, kind)
 	}
 	var err error
 	existing := api.Resource{}

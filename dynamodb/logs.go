@@ -113,32 +113,51 @@ func (s *logStreams) get() []*string {
 	return s.groupStreams
 }
 
+type ErrLogsNotFound struct {
+	msg string
+}
+
+func (e *ErrLogsNotFound) Error() string {
+	return e.msg
+}
+
 func (c *cwlogs) Read(resource, name string, since time.Duration, follow bool) error {
 	logsCh, errCh := c.read(resource, name, since, follow)
 	interrupts := make(chan os.Signal, 1)
+	defer close(interrupts)
 	signal.Notify(interrupts, os.Interrupt)
-	for {
+	var err error
+	for logsCh != nil || errCh != nil {
 		select {
 		case <-interrupts:
 			fmt.Fprintln(os.Stderr, "interrupted")
 			return nil
-		case err, ok := <-errCh:
-			if ok {
-				return fmt.Errorf("stream error: %v", err)
-			} else {
-				return nil
+		case e := <-errCh:
+			if e != nil {
+				switch typed := e.(type) {
+				case awserr.Error:
+					if typed.Code() == cloudwatchlogs.ErrCodeResourceNotFoundException {
+						err = &ErrLogsNotFound{fmt.Sprintf("log stream for resource=%s name=%s does not exist (yet)", resource, name)}
+					} else {
+						err = e
+					}
+				default:
+					err = e
+				}
 			}
+			errCh = nil
 		case log, ok := <-logsCh:
-			if ok {
+			if !ok {
+				logsCh = nil
+			}
+			if log != nil {
 				fmt.Printf("%s", *log.Message)
-			} else {
-				return nil
 			}
 		default:
 			time.Sleep(1000 * time.Millisecond)
 		}
 	}
-	return nil
+	return err
 }
 
 func (c *cwlogs) read(resource, name string, since time.Duration, follow bool) (<-chan *cloudwatchlogs.FilteredLogEvent, <-chan error) {
@@ -166,7 +185,7 @@ func (c *cwlogs) Writer(resource, name string) (io.Writer, error) {
 	return w, nil
 }
 
-func (c *cwlogs) Write(resource, name string, file string) error {
+func (c *cwlogs) WriteFile(resource, name string, file string) error {
 	var rawInput []byte
 	if file == "-" {
 		var buf bytes.Buffer
@@ -204,15 +223,22 @@ func (c *cwlogs) Write(resource, name string, file string) error {
 		LogGroupName:        aws.String(logGroup),
 		LogStreamNamePrefix: aws.String(logStream),
 	})
-	if len(describeStreamOut.LogStreams) == 0 {
-		_, err := c.client.CreateLogStream(&cloudwatchlogs.CreateLogStreamInput{
+	outLogStreams := describeStreamOut.LogStreams
+	if len(outLogStreams) == 0 {
+		if _, err := c.client.CreateLogStream(&cloudwatchlogs.CreateLogStreamInput{
 			LogGroupName:  aws.String(logGroup),
 			LogStreamName: aws.String(logStream),
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
+
+		describeStreamOut, err = c.client.DescribeLogStreams(&cloudwatchlogs.DescribeLogStreamsInput{
+			LogGroupName:        aws.String(logGroup),
+			LogStreamNamePrefix: aws.String(logStream),
+		})
+		outLogStreams = describeStreamOut.LogStreams
 	}
+
 	logEvents := []*cloudwatchlogs.InputLogEvent{
 		{
 			Message:   aws.String(string(rawInput)),
@@ -224,7 +250,8 @@ func (c *cwlogs) Write(resource, name string, file string) error {
 		LogStreamName: aws.String(logStream),
 		LogEvents:     logEvents,
 	}
-	seqToken := describeStreamOut.LogStreams[0].UploadSequenceToken
+	firstLogStream := outLogStreams[0]
+	seqToken := firstLogStream.UploadSequenceToken
 	if seqToken != nil {
 		putInput.SequenceToken = seqToken
 	}
@@ -233,6 +260,14 @@ func (c *cwlogs) Write(resource, name string, file string) error {
 		return putErr
 	}
 	return nil
+}
+
+func (c *cwlogs) Delete(resource, name string) error {
+	logGroup := fmt.Sprintf("%s%s-%s-%s", databasePrefix, c.config.Metadata.Name, c.namespace, resource)
+	_, err := c.client.DeleteLogGroup(&cloudwatchlogs.DeleteLogGroupInput{
+		LogGroupName: aws.String(logGroup),
+	})
+	return err
 }
 
 //readLogEvents tails the given stream names in the specified log group name

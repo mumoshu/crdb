@@ -1,0 +1,10 @@
+kind: Install
+metadata:
+  name: proj1-app1-foo-abc123
+  namespace: default
+spec:
+  project: proj1
+  app: app1
+  cluster: foo
+  sha1: abc123
+  status: completed
